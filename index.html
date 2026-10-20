@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sim-to-Thor</title>
+<meta name="description" content="Sim-to-Thor: synthetic data, compressed policies and real-time robot control on NVIDIA Jetson AGX Thor (Nota AI · NetsPresso Tech).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<nav class="nav" aria-label="Sections">
+  <div class="nav-inner">
+    <a class="brand" href="#top">Sim-to-Thor</a>
+    <div class="nav-links">
+      <a href="#overview">Overview</a>
+      <a href="#method">Method</a>
+      <a href="#results">Results</a>
+      <a href="#videos">Rollouts</a>
+      <a href="#evaluation">Evaluation</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <p class="draft-tag">Draft · values labeled <em>expected</em> are targets, not measurements</p>
+    <h1>Sim-to-Thor: Synthetic Data, Compressed Policies, Real-Time Robot Control</h1>
+    <p class="subtitle">Faster GR00T inference and closed-loop control on NVIDIA Jetson AGX Thor</p>
+    <p class="authors">[Authors]</p>
+    <p class="affil">Nota AI · NetsPresso Tech</p>
+    <div class="buttons">
+      <a class="btn" href="#videos">Rollout videos</a>
+      <a class="btn ghost" href="#results">Success rates</a>
+      <span class="btn disabled" aria-disabled="true">Paper · coming soon</span>
+      <span class="btn disabled" aria-disabled="true">Code · coming soon</span>
+    </div>
+  </div>
+</header>
+
+<main>
+<section id="overview" class="wrap section">
+  <h2><span class="num">1</span>Motivation</h2>
+  <div class="cards three">
+    <div class="card"><h3>Too slow at the edge</h3><p>GR00T N1.7 runs at about 8 Hz on Thor in BF16 (125 ms), while reactive manipulation needs 30 Hz or more.</p></div>
+    <div class="card"><h3>Costly real data</h3><p>Robot demonstrations are expensive, and plain simulation frames look visibly different from camera images.</p></div>
+    <div class="card"><h3>Hard-to-trust evaluation</h3><p>Real-robot results are slow to collect and hard to reproduce.</p></div>
+  </div>
+
+  <h2><span class="num">2</span>Key results <span class="expected">expected</span></h2>
+  <div class="stats">
+    <div class="stat"><span class="big">8.3×</span><span>lower end-to-end latency on Thor (125 → 15 ms)</span></div>
+    <div class="stat"><span class="big">67 Hz</span><span>policy rate with async execution and RTC/LIPO</span></div>
+    <div class="stat"><span class="big">&lt; 2 %p</span><span>LIBERO success drop after full compression</span></div>
+  </div>
+
+  <h2><span class="num">3</span>NVIDIA stack</h2>
+  <div class="stack">
+    <div><b>GR00T N1.7</b><span>base VLA policy</span></div>
+    <div><b>Cosmos 3</b><span>photoreal sim-to-real rendering, world-action policy</span></div>
+    <div><b>Isaac Sim</b><span>scene generation, latency-aware evaluation</span></div>
+    <div><b>Jetson AGX Thor</b><span>on-robot inference</span></div>
+    <div><b>TensorRT</b><span>NVFP4 engines, CUDA Graph</span></div>
+  </div>
+</section>
+
+<section id="method" class="wrap section">
+  <h2><span class="num">4</span>Pipeline overview</h2>
+  <ol class="pipeline">
+    <li><b>Sim-to-real data synthesis</b><span>Isaac Sim scenes → Cosmos 3 photoreal rendering</span></li>
+    <li><b>Policy training &amp; compression</b><span>fine-tune → step distillation → vision token pruning → NVFP4</span></li>
+    <li><b>Real-time control on Thor</b><span>TensorRT + CUDA Graph, async chunks with RTC/LIPO</span></li>
+  </ol>
+
+  <h3 class="sub">4.1 Data synthesis</h3>
+  <ul class="bullets">
+    <li>Isaac Sim recreates LIBERO-style and SO-101 move-the-cube scenes with randomized objects, lighting and layout.</li>
+    <li>Cosmos 3 turns sim frames into camera-like images to shrink the visual sim-to-real gap.</li>
+    <li>Evaluation scenes are held out from all training scenes.</li>
+  </ul>
+
+  <h3 class="sub">4.2 Policy compression</h3>
+  <div class="method-grid">
+    <article class="method">
+      <h4>Step distillation (Drift)</h4>
+      <p>A flow-matching action head integrates the velocity field over several denoising steps. We distill it into a <b>single step</b> with a drift loss: each generated action is pulled toward the demonstration while sibling samples of the same input push each other apart, which keeps the action distribution diverse without a teacher at inference time.</p>
+      <ul class="bullets small">
+        <li><b>GR00T N1.7:</b> the DiT action head runs once instead of 4 times.</li>
+        <li><b>Cosmos3-Edge:</b> the 4-step sampler with classifier-free guidance (8 tower forwards) becomes 1 forward at σ = 1 with guidance off.</li>
+      </ul>
+      <svg class="diagram" viewBox="0 0 520 170" role="img" aria-labelledby="sd-t">
+        <title id="sd-t">4-step flow matching with CFG needs 8 forwards; the drift-distilled policy needs 1</title>
+        <text x="0" y="18" class="lbl">Flow matching · 4 steps × CFG</text>
+        <g class="fm">
+          <rect x="0" y="28" width="92" height="30" rx="5"/><rect x="0" y="62" width="92" height="30" rx="5" class="unc"/>
+          <rect x="128" y="28" width="92" height="30" rx="5"/><rect x="128" y="62" width="92" height="30" rx="5" class="unc"/>
+          <rect x="256" y="28" width="92" height="30" rx="5"/><rect x="256" y="62" width="92" height="30" rx="5" class="unc"/>
+          <rect x="384" y="28" width="92" height="30" rx="5"/><rect x="384" y="62" width="92" height="30" rx="5" class="unc"/>
+        </g>
+        <g class="txt">
+          <text x="46" y="48">cond</text><text x="46" y="82">uncond</text>
+          <text x="174" y="48">cond</text><text x="174" y="82">uncond</text>
+          <text x="302" y="48">cond</text><text x="302" y="82">uncond</text>
+          <text x="430" y="48">cond</text><text x="430" y="82">uncond</text>
+        </g>
+        <g class="arrows"><path d="M96 60 H124"/><path d="M224 60 H252"/><path d="M352 60 H380"/></g>
+        <text x="486" y="64" class="lbl">8×</text>
+        <text x="0" y="122" class="lbl">Drift · 1 step</text>
+        <rect x="0" y="132" width="92" height="30" rx="5" class="drift"/>
+        <text x="46" y="152" class="txt-in">cond</text>
+        <path d="M96 147 H124" class="arrow"/>
+        <text x="132" y="152" class="lbl">action chunk</text>
+        <text x="486" y="152" class="lbl">1×</text>
+      </svg>
+    </article>
+    <article class="method">
+      <h4>Vision token pruning / video token drop</h4>
+      <p>Most of the sequence entering the backbone is visual. We remove the tokens the action does not need.</p>
+      <ul class="bullets small">
+        <li><b>GR00T N1.7 · Grid-Sampler:</b> a small head predicts <i>K</i> continuous coordinates per camera and bilinearly samples <i>K</i> tokens from the vision-encoder patch grid, so only <i>K</i> image tokens reach the LLM.</li>
+        <li><b>Cosmos3-Edge · video token drop:</b> the world-action model also generates future video (8 latent frames × 340 tokens). We keep the conditioning frame and the first <i>K</i> generated frames and drop the rest; dropping 75% keeps 2 of 8 frames, dropping 100% keeps actions only (FastWAM).</li>
+      </ul>
+      <svg class="diagram" viewBox="0 0 520 170" role="img" aria-labelledby="vtp-t">
+        <title id="vtp-t">Grid-Sampler keeps K sampled tokens per camera; video token drop removes generated video frames from the Cosmos3 sequence</title>
+        <text x="0" y="18" class="lbl">GR00T · Grid-Sampler</text>
+        <g class="grid" id="gridpatches"></g>
+        <path d="M118 66 H150" class="arrow"/>
+        <g class="kept"><rect x="156" y="52" width="16" height="16" rx="3"/><rect x="176" y="52" width="16" height="16" rx="3"/><rect x="196" y="52" width="16" height="16" rx="3"/><rect x="216" y="52" width="16" height="16" rx="3"/></g>
+        <text x="156" y="90" class="lbl">K tokens → LLM</text>
+        <text x="282" y="18" class="lbl">Cosmos3 · video token drop</text>
+        <g class="seq">
+          <rect x="282" y="40" width="34" height="26" rx="4" class="txtk"/>
+          <rect x="320" y="40" width="22" height="26" rx="4" class="keep"/>
+          <rect x="346" y="40" width="22" height="26" rx="4" class="keep"/>
+          <rect x="372" y="40" width="22" height="26" rx="4" class="keep"/>
+          <rect x="398" y="40" width="22" height="26" rx="4" class="drop"/>
+          <rect x="424" y="40" width="22" height="26" rx="4" class="drop"/>
+          <rect x="450" y="40" width="22" height="26" rx="4" class="drop"/>
+          <rect x="476" y="40" width="40" height="26" rx="4" class="act"/>
+        </g>
+        <path d="M398 44 L472 62 M398 62 L472 44" class="cross"/>
+        <text x="282" y="84" class="lbl small">text</text>
+        <text x="320" y="84" class="lbl small">v0 + K generated</text>
+        <text x="476" y="84" class="lbl small">actions</text>
+        <text x="282" y="122" class="lbl">drop 75%: keep 2 of 8 generated frames</text>
+        <text x="282" y="142" class="lbl">drop 100%: actions only (FastWAM)</text>
+      </svg>
+    </article>
+    <article class="method wide">
+      <h4>NVFP4 quantization</h4>
+      <p>Mixed NVFP4/FP8 TensorRT engines, calibrated per component: vision encoder in FP8, LLM in NVFP4 with <code>o_proj</code>/<code>down_proj</code> in FP8, DiT action head in NVFP4.</p>
+    </article>
+  </div>
+
+  <h3 class="sub">4.3 Real-time control on Thor</h3>
+  <ul class="bullets">
+    <li>Per-component TensorRT engines captured in CUDA Graphs remove launch overhead.</li>
+    <li>Async execution: the robot runs chunk <i>k</i> while Thor computes chunk <i>k</i>+1; RTC/LIPO keeps transitions smooth.</li>
+  </ul>
+  <div class="timeline" aria-label="Sync versus async execution">
+    <span class="tl-label">Sync</span><div class="tl-row"><span class="inf">infer</span><span class="exe">execute</span><span class="inf">infer</span></div>
+    <span class="tl-label">Async</span><div class="tl-row"><span class="exe w2">execute k</span><span class="exe w2">execute k+1</span></div>
+    <span></span><div class="tl-row"><span class="inf w2">infer k+1</span><span class="inf w2">infer k+2</span></div>
+  </div>
+</section>
+
+<section id="evaluation" class="wrap section">
+  <h2><span class="num">5</span>Evaluation protocol</h2>
+  <dl class="defs">
+    <dt>Latency-aware simulation</dt><dd>Sim time keeps running during inference (Thor in the loop, or measured latency injected).</dd>
+    <dt>Benchmarks</dt><dd>GR00T N1.7 on LIBERO (4 suites); Cosmos3-Edge on RoboLab (96 episodes: 12 tasks × 8); SO-101 move-the-cube on the real robot (20 trials per config).</dd>
+    <dt>Trust in sim</dt><dd>Sim vs. real success correlation (Pearson r, MMRV) across all configs.</dd>
+  </dl>
+</section>
+
+<section id="results" class="wrap section">
+  <h2><span class="num">6</span>Results</h2>
+
+  <h3 class="sub">6.1 Latency on Thor <span class="expected">expected</span></h3>
+  <div class="bars" role="img" aria-label="Expected end-to-end latency on Thor in milliseconds: 125, 39.9, 28, 19, 15">
+    <div class="bar-row"><span class="bl">BF16 TRT</span><span class="bt"><i class="g" style="width:100%"></i></span><b>125</b></div>
+    <div class="bar-row"><span class="bl">NVFP4 (NVIDIA)</span><span class="bt"><i class="d" style="width:31.9%"></i></span><b>39.9</b></div>
+    <div class="bar-row"><span class="bl">+ step distill</span><span class="bt"><i style="width:22.4%"></i></span><b>28</b></div>
+    <div class="bar-row"><span class="bl">+ token prune</span><span class="bt"><i style="width:15.2%"></i></span><b>19</b></div>
+    <div class="bar-row"><span class="bl">Ours (+Graph, RTC)</span><span class="bt"><i class="a" style="width:12%"></i></span><b>15</b></div>
+    <p class="note">ms per decision. 125 ms and 39.9 ms come from NVIDIA's Jetson AI Lab GR00T N1.7 on Thor tutorial; the other rows are targets.</p>
+  </div>
+
+  <h3 class="sub">6.2 Success rate by vision token pruning and step distillation</h3>
+  <div class="tables">
+    <figure class="tbl">
+      <figcaption><b>GR00T N1.7 · LIBERO</b> success rate (%), 4 suites</figcaption>
+      <div class="scroll"><table>
+        <thead><tr><th>Config</th><th>Spatial</th><th>Object</th><th>Goal</th><th>Long</th><th>Avg</th></tr></thead>
+        <tbody>
+          <tr><td>Baseline (4-step flow matching)</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+          <tr><td>+ Vision token pruning (Grid-Sampler)</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+          <tr><td>+ Step distillation (Drift, 1 step)</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+          <tr><td>+ Pruning + step distillation</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">Being measured.</p>
+    </figure>
+    <figure class="tbl">
+      <figcaption><b>Cosmos3-Edge · RoboLab</b> success rate (%), 96 episodes</figcaption>
+      <div class="scroll"><table>
+        <thead><tr><th>Config</th><th>Overall</th><th>Simple</th><th>Moderate</th><th>Complex</th></tr></thead>
+        <tbody>
+          <tr class="base"><td>Baseline (4-step, CFG)</td><td>36.5</td><td>56.2</td><td>34.4</td><td>18.8</td></tr>
+          <tr class="best"><td>Video token drop 75%</td><td>38.5</td><td>65.6</td><td>25.0</td><td>25.0</td></tr>
+          <tr><td>Video token drop 100% (FastWAM)</td><td>25.0</td><td>46.9</td><td>28.1</td><td>0.0</td></tr>
+          <tr><td>1-step Drift</td><td>22.7</td><td>43.6</td><td>24.6</td><td>0.0</td></tr>
+          <tr><td>1-step Drift + drop 75%</td><td>21.9</td><td>40.6</td><td>25.0</td><td>0.0</td></tr>
+          <tr><td>1-step Drift + drop 100%</td><td>9.4</td><td>3.1</td><td>25.0</td><td>0.0</td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">Dropping 75% of the generated video tokens matches the baseline. One-step distillation loses success on complex tasks.</p>
+    </figure>
+  </div>
+
+  <h3 class="sub">6.3 Synthetic data <span class="expected">expected</span></h3>
+  <div class="bars" role="img" aria-label="Expected success: 52, 61, 70 percent">
+    <div class="bar-row"><span class="bl">Real only</span><span class="bt"><i class="g" style="width:52%"></i></span><b>52</b></div>
+    <div class="bar-row"><span class="bl">+ Isaac Sim</span><span class="bt"><i class="d" style="width:61%"></i></span><b>61</b></div>
+    <div class="bar-row"><span class="bl">+ Isaac Sim + Cosmos 3</span><span class="bt"><i class="a" style="width:70%"></i></span><b>70</b></div>
+    <p class="note">Sim-real correlation: r = 0.62 (Isaac Sim) → 0.91 (+ Cosmos 3).</p>
+  </div>
+</section>
+
+<section id="videos" class="wrap section">
+  <h2><span class="num">★</span>Rollout videos</h2>
+  <div class="tabs" role="tablist" aria-label="Benchmark">
+    <button role="tab" id="tab-libero" aria-selected="true" aria-controls="pane-libero">LIBERO</button>
+    <button role="tab" id="tab-robolab" aria-selected="false" aria-controls="pane-robolab">RoboLab</button>
+    <button role="tab" id="tab-so101" aria-selected="false" aria-controls="pane-so101">SO-101 (real)</button>
+  </div>
+  <div class="pane" id="pane-libero" role="tabpanel" aria-labelledby="tab-libero">
+    <div class="vgrid">
+      <figure class="vslot"><video data-src="videos/libero/spatial.mp4" muted loop playsinline preload="metadata"></video><figcaption>LIBERO-Spatial</figcaption></figure>
+      <figure class="vslot"><video data-src="videos/libero/object.mp4" muted loop playsinline preload="metadata"></video><figcaption>LIBERO-Object</figcaption></figure>
+      <figure class="vslot"><video data-src="videos/libero/goal.mp4" muted loop playsinline preload="metadata"></video><figcaption>LIBERO-Goal</figcaption></figure>
+      <figure class="vslot"><video data-src="videos/libero/long.mp4" muted loop playsinline preload="metadata"></video><figcaption>LIBERO-Long</figcaption></figure>
+    </div>
+  </div>
+  <div class="pane" id="pane-robolab" role="tabpanel" aria-labelledby="tab-robolab" hidden>
+    <div class="vgrid">
+      <figure class="vslot"><video data-src="videos/robolab/simple.mp4" muted loop playsinline preload="metadata"></video><figcaption>RoboLab · simple</figcaption></figure>
+      <figure class="vslot"><video data-src="videos/robolab/moderate.mp4" muted loop playsinline preload="metadata"></video><figcaption>RoboLab · moderate</figcaption></figure>
+      <figure class="vslot"><video data-src="videos/robolab/complex.mp4" muted loop playsinline preload="metadata"></video><figcaption>RoboLab · complex</figcaption></figure>
+      <figure class="vslot"><video data-src="videos/robolab/compare.mp4" muted loop playsinline preload="metadata"></video><figcaption>Baseline vs. video token drop 75%</figcaption></figure>
+    </div>
+  </div>
+  <div class="pane" id="pane-so101" role="tabpanel" aria-labelledby="tab-so101" hidden>
+    <div class="vgrid">
+      <figure class="vslot"><video data-src="videos/so101/bf16.mp4" muted loop playsinline preload="metadata"></video><figcaption>SO-101 · BF16</figcaption></figure>
+      <figure class="vslot"><video data-src="videos/so101/nvfp4.mp4" muted loop playsinline preload="metadata"></video><figcaption>SO-101 · NVFP4</figcaption></figure>
+      <figure class="vslot"><video data-src="videos/so101/ours.mp4" muted loop playsinline preload="metadata"></video><figcaption>SO-101 · Ours (async + RTC)</figcaption></figure>
+      <figure class="vslot"><video data-src="videos/so101/wrist.mp4" muted loop playsinline preload="metadata"></video><figcaption>SO-101 · wrist camera</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section class="wrap section">
+  <h2><span class="num">7</span>Limitations &amp; next steps</h2>
+  <ul class="bullets">
+    <li>Real-robot results cover one task (move-the-cube) on SO-101.</li>
+    <li>One-step distillation still loses success on complex RoboLab tasks; combining it with video token drop needs further training.</li>
+    <li>Next: Cosmos 3 planning on B300 with the Thor policy for long-horizon tasks.</li>
+  </ul>
+</section>
+</main>
+
+<footer class="footer"><div class="wrap">Sim-to-Thor · Nota AI · NetsPresso Tech · Draft project page</div></footer>
+<script src="assets/site.js"></script>
+</body>
+</html>
