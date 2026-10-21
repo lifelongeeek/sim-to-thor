@@ -197,28 +197,35 @@
         <tr><th>LIBERO avg</th><th>SO-101</th><th>RoboLab overall</th></tr>
       </thead>
       <tbody>
-        <tr class="base"><td>Baseline</td><td>TBD</td><td>TBD</td><td>36.5</td></tr>
-        <tr><td>+ VTP</td><td>TBD</td><td>TBD</td><td>38.5</td></tr>
-        <tr><td>+ SD</td><td>TBD</td><td>TBD</td><td>22.7</td></tr>
-        <tr><td>+ VTP + SD</td><td>TBD</td><td>TBD</td><td>21.9</td></tr>
+        <tr class="base"><td>Baseline</td><td>94.8</td><td>TBD</td><td>36.5</td></tr>
+        <tr><td>+ VTP</td><td>93.3</td><td>TBD</td><td>38.5</td></tr>
+        <tr><td>+ SD</td><td>94.6</td><td>TBD</td><td>22.7</td></tr>
+        <tr><td>+ VTP + SD</td><td>94.0</td><td>TBD</td><td>21.9</td></tr>
       </tbody>
     </table></div>
-    <p class="note">VTP: Grid-Sampler for GR00T, 75% generated-video token drop for Cosmos3-Edge. SD: one-step Drift distillation. TBD = being measured.</p>
+    <p class="note">VTP: Grid-Sampler keeping 16 of 64 tokens per camera for GR00T, 75% generated-video token drop for Cosmos3-Edge. SD: one-step Drift distillation. TBD = being measured.</p>
   </figure>
 
   <h4 class="detail">Detailed results</h4>
   <div class="tables">
-    <figure class="tbl">
+    <figure class="tbl wide">
       <figcaption><b>GR00T N1.7 · LIBERO</b> success rate (%), 500 episodes per suite</figcaption>
       <div class="scroll"><table>
-        <thead><tr><th>Config</th><th>Spatial</th><th>Object</th><th>Goal</th><th>Long</th><th>Avg</th></tr></thead>
+        <thead><tr><th>Config</th><th>Tok/cam</th><th>Steps</th><th>Spatial</th><th>Object</th><th>Goal</th><th>Long</th><th>Avg</th></tr></thead>
         <tbody>
-          <tr class="base"><td>Baseline (4-step flow matching)</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
-          <tr><td>+ VTP (Grid-Sampler, K tokens/camera)</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
-          <tr><td>+ SD (Drift, 1 step)</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
-          <tr><td>+ VTP + SD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+          <tr class="base"><td>Baseline (NVIDIA checkpoint)</td><td>64</td><td>4</td><td>94.4</td><td>98.6</td><td>96.4</td><td>89.6</td><td>94.8</td></tr>
+          <tr><td>Fine-tune control (no change)</td><td>64</td><td>4</td><td>96.2</td><td>98.0</td><td>94.4</td><td>88.2</td><td>94.2</td></tr>
+          <tr><td>+ VTP (Grid-Sampler, K=16)</td><td>16</td><td>4</td><td>95.0</td><td>97.8</td><td>94.2</td><td>86.0</td><td>93.3</td></tr>
+          <tr><td>+ SD (Drift, 1 step)</td><td>64</td><td>1</td><td>94.8</td><td>98.0</td><td>94.8</td><td>90.8</td><td>94.6</td></tr>
+          <tr><td>+ VTP + SD</td><td>16</td><td>1</td><td>95.0</td><td>97.8</td><td>93.8</td><td>89.2</td><td>94.0</td></tr>
         </tbody>
       </table></div>
+      <p class="note">Fine-tunes start from the suite-specific NVIDIA checkpoints (10k steps). The fine-tune control separates the effect of extra training from VTP and SD. With 500 episodes the standard error is about ±1.4%p near 90%, so gaps under ~3%p are within noise.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>VTP token budget (LIBERO-Long)</th><th>K=8</th><th>K=16</th><th>K=32</th><th>64 (no pruning)</th></tr></thead>
+        <tbody><tr><td>Success (%)</td><td>83.8</td><td>86.0</td><td>85.6</td><td>88.2</td></tr></tbody>
+      </table></div>
+      <p class="note">K = vision tokens kept per camera out of 64; "64" is the fine-tune control.</p>
     </figure>
     <figure class="tbl">
       <figcaption><b>GR00T N1.7 · SO-101</b> move-the-cube on the real robot</figcaption>
