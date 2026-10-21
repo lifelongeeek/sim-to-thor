@@ -142,3 +142,14 @@ tr.best td { font-weight: 700; background: var(--chip); }
 .vslot figcaption { font-weight: 600; font-size: .95rem; }
 
 .footer { margin-top: 56px; padding: 22px 0 36px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: .9rem; }
+
+.tbl.wide { grid-column: 1 / -1; }
+.tbl.summary { max-width: 720px; }
+thead th.grp { text-align: center; border-left: 1px solid var(--slate-2); }
+thead tr:nth-child(2) th { border-left: 1px solid var(--slate-2); }
+thead th[rowspan] { vertical-align: bottom; }
+h4.detail { font: 700 1.05rem var(--display); margin: 8px 0 0; }
+.tbl.summary thead th { text-align: center; }
+.tbl.summary thead th[rowspan] { text-align: left; }
+.tbl.summary td { text-align: center; }
+.tbl.summary td:first-child { text-align: left; }

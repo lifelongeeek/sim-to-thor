@@ -84,8 +84,8 @@
   <h3 class="sub">4.2 Policy compression</h3>
   <div class="method-grid">
     <article class="method">
-      <h4>Step distillation (Drift)</h4>
-      <p>A flow-matching action head integrates the velocity field over several denoising steps. We distill it into a <b>single step</b> with a drift loss: each generated action is pulled toward the demonstration while sibling samples of the same input push each other apart, which keeps the action distribution diverse without a teacher at inference time.</p>
+      <h4>Step distillation</h4>
+      <p>A flow-matching action head integrates the velocity field over several denoising steps. We distill it into a <b>single step</b> with a Drift loss: each generated action is pulled toward the demonstration while sibling samples of the same input push each other apart, which keeps the action distribution diverse without a teacher at inference time.</p>
       <ul class="bullets small">
         <li><b>GR00T N1.7:</b> the DiT action head runs once instead of 4 times.</li>
         <li><b>Cosmos3-Edge:</b> the 4-step sampler with classifier-free guidance (8 tower forwards) becomes 1 forward at σ = 1 with guidance off.</li>
@@ -170,7 +170,7 @@
   <h2><span class="num">5</span>Evaluation protocol</h2>
   <dl class="defs">
     <dt>Latency-aware simulation</dt><dd>Sim time keeps running during inference (Thor in the loop, or measured latency injected).</dd>
-    <dt>Benchmarks</dt><dd>GR00T N1.7 on LIBERO (4 suites); Cosmos3-Edge on RoboLab (96 episodes: 12 tasks × 8); SO-101 move-the-cube on the real robot (20 trials per config).</dd>
+    <dt>Benchmarks</dt><dd>GR00T N1.7: LIBERO (4 suites, 500 episodes each) and SO-101 move-the-cube on the real robot (20 trials per config). Cosmos3-Edge: RoboLab (96 episodes: 12 tasks × 8).</dd>
     <dt>Trust in sim</dt><dd>Sim vs. real success correlation (Pearson r, MMRV) across all configs.</dd>
   </dl>
 </section>
@@ -188,31 +188,60 @@
     <p class="note">ms per decision. 125 ms and 39.9 ms come from NVIDIA's Jetson AI Lab GR00T N1.7 on Thor tutorial; the other rows are targets.</p>
   </div>
 
-  <h3 class="sub">6.2 Success rate by vision token pruning and step distillation</h3>
+  <h3 class="sub">6.2 Success rate by vision token pruning (VTP) and step distillation (SD)</h3>
+  <figure class="tbl summary">
+    <figcaption><b>Summary</b> · success rate (%) as shown on the poster</figcaption>
+    <div class="scroll"><table>
+      <thead>
+        <tr><th rowspan="2">Config</th><th colspan="2" class="grp">GR00T N1.7</th><th class="grp">Cosmos3-Edge</th></tr>
+        <tr><th>LIBERO avg</th><th>SO-101</th><th>RoboLab overall</th></tr>
+      </thead>
+      <tbody>
+        <tr class="base"><td>Baseline</td><td>TBD</td><td>TBD</td><td>36.5</td></tr>
+        <tr><td>+ VTP</td><td>TBD</td><td>TBD</td><td>38.5</td></tr>
+        <tr><td>+ SD</td><td>TBD</td><td>TBD</td><td>22.7</td></tr>
+        <tr><td>+ VTP + SD</td><td>TBD</td><td>TBD</td><td>21.9</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">VTP: Grid-Sampler for GR00T, 75% generated-video token drop for Cosmos3-Edge. SD: one-step Drift distillation. TBD = being measured.</p>
+  </figure>
+
+  <h4 class="detail">Detailed results</h4>
   <div class="tables">
     <figure class="tbl">
-      <figcaption><b>GR00T N1.7 · LIBERO</b> success rate (%), 4 suites</figcaption>
+      <figcaption><b>GR00T N1.7 · LIBERO</b> success rate (%), 500 episodes per suite</figcaption>
       <div class="scroll"><table>
         <thead><tr><th>Config</th><th>Spatial</th><th>Object</th><th>Goal</th><th>Long</th><th>Avg</th></tr></thead>
         <tbody>
-          <tr><td>Baseline (4-step flow matching)</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
-          <tr><td>+ Vision token pruning (Grid-Sampler)</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
-          <tr><td>+ Step distillation (Drift, 1 step)</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
-          <tr><td>+ Pruning + step distillation</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+          <tr class="base"><td>Baseline (4-step flow matching)</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+          <tr><td>+ VTP (Grid-Sampler, K tokens/camera)</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+          <tr><td>+ SD (Drift, 1 step)</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+          <tr><td>+ VTP + SD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
         </tbody>
       </table></div>
-      <p class="note">Being measured.</p>
     </figure>
     <figure class="tbl">
-      <figcaption><b>Cosmos3-Edge · RoboLab</b> success rate (%), 96 episodes</figcaption>
+      <figcaption><b>GR00T N1.7 · SO-101</b> move-the-cube on the real robot</figcaption>
+      <div class="scroll"><table>
+        <thead><tr><th>Config</th><th>Success / trials</th><th>Success (%)</th></tr></thead>
+        <tbody>
+          <tr class="base"><td>Baseline</td><td>TBD / 20</td><td>TBD</td></tr>
+          <tr><td>+ VTP</td><td>TBD / 20</td><td>TBD</td></tr>
+          <tr><td>+ SD</td><td>TBD / 20</td><td>TBD</td></tr>
+          <tr><td>+ VTP + SD</td><td>TBD / 20</td><td>TBD</td></tr>
+        </tbody>
+      </table></div>
+    </figure>
+    <figure class="tbl wide">
+      <figcaption><b>Cosmos3-Edge · RoboLab</b> success rate (%), 96 episodes (12 tasks × 8)</figcaption>
       <div class="scroll"><table>
         <thead><tr><th>Config</th><th>Overall</th><th>Simple</th><th>Moderate</th><th>Complex</th></tr></thead>
         <tbody>
           <tr class="base"><td>Baseline (4-step, CFG)</td><td>36.5</td><td>56.2</td><td>34.4</td><td>18.8</td></tr>
-          <tr class="best"><td>Video token drop 75%</td><td>38.5</td><td>65.6</td><td>25.0</td><td>25.0</td></tr>
-          <tr><td>Video token drop 100% (FastWAM)</td><td>25.0</td><td>46.9</td><td>28.1</td><td>0.0</td></tr>
-          <tr><td>1-step Drift</td><td>22.7</td><td>43.6</td><td>24.6</td><td>0.0</td></tr>
-          <tr><td>1-step Drift + drop 75%</td><td>21.9</td><td>40.6</td><td>25.0</td><td>0.0</td></tr>
+          <tr class="best"><td>+ VTP: video token drop 75%</td><td>38.5</td><td>65.6</td><td>25.0</td><td>25.0</td></tr>
+          <tr><td>video token drop 100% (FastWAM)</td><td>25.0</td><td>46.9</td><td>28.1</td><td>0.0</td></tr>
+          <tr><td>+ SD: 1-step Drift</td><td>22.7</td><td>43.6</td><td>24.6</td><td>0.0</td></tr>
+          <tr><td>+ VTP + SD: 1-step Drift + drop 75%</td><td>21.9</td><td>40.6</td><td>25.0</td><td>0.0</td></tr>
           <tr><td>1-step Drift + drop 100%</td><td>9.4</td><td>3.1</td><td>25.0</td><td>0.0</td></tr>
         </tbody>
       </table></div>
